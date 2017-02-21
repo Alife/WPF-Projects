@@ -88,10 +88,22 @@
                 <TextBlock TextWrapping="Wrap" Text="清空" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="22,-1,0,0" />
             </Grid>
         </Button>
-        <Button x:Name="Button_DownloadAll" HorizontalAlignment="Left" Margin="220,0,0,9" Width="171" Height="25" VerticalAlignment="Bottom" Click="Button_DownloadAll_Click">
+        <Button x:Name="Button_DeleteAllAlbum" HorizontalAlignment="Left" Margin="220,0,0,9" Height="25" VerticalAlignment="Bottom" Click="Button_DeleteAllAlbum_Click">
+            <Grid>
+                <Image HorizontalAlignment="Left" Margin="2,1,0,0" Source="Skin/Button_Delete.png" Stretch="Fill" Width="17" Height="16"/>
+                <TextBlock TextWrapping="Wrap" Text="清除封面" ToolTip="批量清除歌曲专辑封面" VerticalAlignment="Top" Margin="22,-1,5,0" HorizontalAlignment="Left" />
+            </Grid>
+        </Button>
+        <Button x:Name="Button_DeleteAllLyrics" HorizontalAlignment="Left" Margin="320,0,0,9" Height="25" VerticalAlignment="Bottom" Click="Button_DeleteAllLyrics_Click">
+            <Grid>
+                <Image HorizontalAlignment="Left" Margin="2,1,0,0" Source="Skin/Button_Delete.png" Stretch="Fill" Width="17" Height="16"/>
+                <TextBlock TextWrapping="Wrap" Text="清除歌词" ToolTip="批量清除歌曲内嵌歌词" VerticalAlignment="Top" Margin="22,-1,5,0" HorizontalAlignment="Left" />
+            </Grid>
+        </Button>
+        <Button x:Name="Button_DownloadAll" HorizontalAlignment="Left" Margin="420,0,0,9" Height="25" VerticalAlignment="Bottom" Click="Button_DownloadAll_Click">
             <Grid>
                 <Image HorizontalAlignment="Left" Margin="2,1,0,0" Source="Skin/Button_Download.png" Stretch="Fill" Width="17" Height="16"/>
-                <TextBlock TextWrapping="Wrap" Text="下载全部封面及歌词" VerticalAlignment="Top" Margin="22,-1,0,0" HorizontalAlignment="Left" Width="126" />
+                <TextBlock TextWrapping="Wrap" Text="下载全部" ToolTip="自动更新并保存专辑图片与内嵌歌词" VerticalAlignment="Top" Margin="22,-1,5,0" HorizontalAlignment="Left" />
             </Grid>
         </Button>
         <Image x:Name="Image_album" HorizontalAlignment="Right" Height="132" Margin="0,0,37,213" VerticalAlignment="Bottom" MaxHeight="132" MaxWidth="132" Width="132" Source="Skin/AlbumNoPicture.png" />

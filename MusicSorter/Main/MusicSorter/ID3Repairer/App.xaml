@@ -19,7 +19,7 @@
                 <Grid Height="22">
                     <Grid.ToolTip>
                         <WrapPanel Width="164">
-                            <Image Margin="2,4" MaxHeight="160" MaxWidth="160" Source="{Binding SongAlbum}"/>
+                            <Image Margin="2,4" MaxHeight="160" MaxWidth="160" Source="{Binding SongAlbumFirst}"/>
                             <TextBlock Margin="2" Text="{Binding SongTitle}" Width="160"/>
                             <TextBlock Margin="2">歌手：</TextBlock>
                             <TextBlock Text="{Binding SongArtist}" Margin="2" Width="120"/>
@@ -33,8 +33,8 @@
                         <ColumnDefinition Width="21" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" x:Name="SongName" Height="22" Margin="2,2" Text="{Binding SongName}"/>
-                    <Image Grid.Column="1" Height="20" Width="21" HorizontalAlignment="Right" Source="{Binding HasSongAlbum}" ToolTip="专辑图片 OK!"/>
-                    <Image Grid.Column="2" Height="20" Width="21" HorizontalAlignment="Right" Source="{Binding HasSongLyrics}" ToolTip="歌曲歌词 OK!"/>
+                    <Image Grid.Column="1" Height="20" Width="21" HorizontalAlignment="Right" Source="{Binding HasSongAlbum}" ToolTip="{Binding AlbumTip}"/>
+                    <Image Grid.Column="2" Height="20" Width="21" HorizontalAlignment="Right" Source="{Binding HasSongLyrics}" ToolTip="{Binding LyricsTip}"/>
                 </Grid>
 
             </DataTemplate>

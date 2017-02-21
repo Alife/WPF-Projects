@@ -22,10 +22,6 @@ using System.Runtime.InteropServices;
 using System.Net;
 using System.Windows.Interop;
 using QianQianLrc;
-using ID3.ID3v2Frames;
-using ID3;
-using ID3.ID3v1Frame;
-
 
 namespace MusicSorter
 {

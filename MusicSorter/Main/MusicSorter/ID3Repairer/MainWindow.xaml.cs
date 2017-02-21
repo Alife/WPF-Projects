@@ -22,9 +22,6 @@ using System.Runtime.InteropServices;
 using System.Net;
 using System.Windows.Interop;
 using QianQianLrc;
-using ID3.ID3v2Frames;
-using ID3;
-using ID3.ID3v1Frame;
 
 namespace MusicSorter
 {
@@ -33,6 +30,8 @@ namespace MusicSorter
     /// </summary>
     public partial class MainWindow : Window
     {
+        bool isBatchDeleteMode = false;// 批处理模式下不显示确认对话框
+        string OpenFileFilter = "Music Files|*.mp3;*.m4a;*.flac"; //仅支持MP3文件
         public MainWindow()
         {
             this.InitializeComponent();
@@ -347,70 +346,29 @@ namespace MusicSorter
 
             foreach (string FileName in FileNames)
             {
-                if (System.IO.Path.GetExtension(FileName).ToUpper() != ".MP3") continue;
-                BitmapImage HasAlbum = null;
+                if (!OpenFileFilter.Split('|').Last().Replace("*","").ToUpper().Split(';').Contains(System.IO.Path.GetExtension(FileName).ToUpper())) continue;
+                BitmapImage[] HasAlbum = null;
                 string HasLyrics = null;
 
 
                 string Title = "", Artist = "", Album = "";
-                ID3v2 id3v2 = new ID3v2(FileName, true);
-                if (id3v2.TextWithLanguageFrames.Count > 0)
-                {
-                    for (int i = 0; i < id3v2.TextWithLanguageFrames.Count; i++)
-                    {
-                        if (id3v2.TextWithLanguageFrames.Items[i].FrameID == "USLT")
-                        {
-                            HasLyrics = id3v2.TextWithLanguageFrames.Items[i].Text.Trim();
-                            break;
-                        }
-                    }
-                }
-                if (id3v2.AttachedPictureFrames.Count > 0)
-                {
-                    for (int i = 0; i < id3v2.AttachedPictureFrames.Count; i++)
-                    {
-                        if (id3v2.AttachedPictureFrames.Items[i].FrameID == "APIC")
-                        {
-                            HasAlbum = new BitmapImage();
-                            HasAlbum.BeginInit();
-                            HasAlbum.StreamSource = id3v2.AttachedPictureFrames.Items[0].Data;
-                            try
-                            {
-                                HasAlbum.EndInit();
-                            }
-                            catch
-                            {
-                                HasAlbum = null;
-                            }
-                            break;
-                        }
-                    }
-                }
-                if (id3v2.TextFrames.Count > 0)
-                {
-                    for (int i = 0; i < id3v2.TextFrames.Count; i++)
-                    {
-                        if (id3v2.TextFrames.Items[i].FrameID == "TIT2")
-                            Title = id3v2.TextFrames.Items[i].Text;
-                        if (id3v2.TextFrames.Items[i].FrameID == "TPE1")
-                            Artist = id3v2.TextFrames.Items[i].Text;
-                        if (id3v2.TextFrames.Items[i].FrameID == "TALB")
-                            Album = id3v2.TextFrames.Items[i].Text;
-                    }
-                }
-
-
-                ID3v1 id3v1 = new ID3v1(FileName, true);
-
-                Title = IsStringNullOrEmpry(Title) ? id3v1.Title : Title;
-                Artist = IsStringNullOrEmpry(Artist) ? id3v1.Artist : Artist;
-                Album = IsStringNullOrEmpry(Album) ? id3v1.Album : Album;
+                TagLib.File file = null; var msg = ""; try { file = TagLib.File.Create(FileName); }
+                catch (Exception ex) { msg = ex.Message; continue; }
+                Title = IsStringNullOrEmpry(Title) ? file.Tag.Title : Title;
+                Artist = IsStringNullOrEmpry(Artist) ? file.Tag.FirstPerformer : Artist;
+                Album = IsStringNullOrEmpry(Album) ? file.Tag.Album : Album;
+                HasLyrics = IsStringNullOrEmpry(HasLyrics) ? file.Tag.Lyrics : HasLyrics;
+                if (HasAlbum == null){HasAlbum=new BitmapImage[file.Tag.Pictures.Length];for (int i = 0; i < file.Tag.Pictures.Length; i++){ 
+                    MemoryStream ms = new MemoryStream(file.Tag.Pictures[i].Data.Data);
+                    HasAlbum[i] = new BitmapImage(); HasAlbum[i].BeginInit(); HasAlbum[i].StreamSource = (ms); 
+                    try{HasAlbum[i].EndInit();}catch{HasAlbum[i] = null;}
+                }}
 
                 if (IsStringNullOrEmpry(Title)) Title = "";
                 if (IsStringNullOrEmpry(Artist)) Artist = "";
                 if (IsStringNullOrEmpry(Album)) Album = "";
 
-                SongList.Add(new Song(FileName, Title.TrimEnd(CharToDelete), Artist.TrimEnd(CharToDelete), Album.TrimEnd(CharToDelete), HasAlbum, HasLyrics));
+                SongList.Add(new Song(FileName, Title.TrimEnd(CharToDelete), Artist.TrimEnd(CharToDelete), Album.TrimEnd(CharToDelete), HasAlbum == null ? null : new ObservableCollection<BitmapImage>(HasAlbum), HasLyrics));
 
 
 
@@ -421,10 +379,10 @@ namespace MusicSorter
             }
         }
 
-        private void Button_AddSongs_Click(object sender, RoutedEventArgs e)
+    private void Button_AddSongs_Click(object sender, RoutedEventArgs e)
         {
             System.Windows.Forms.OpenFileDialog OpenFile = new System.Windows.Forms.OpenFileDialog();
-            OpenFile.Filter = "Mp3 files (*.mp3)|*.mp3"; //仅支持MP3文件
+            OpenFile.Filter = OpenFileFilter; //仅支持MP3文件
             OpenFile.FilterIndex = 1;
             OpenFile.RestoreDirectory = true;
             OpenFile.Multiselect = true; //多文件选择
@@ -595,7 +553,7 @@ namespace MusicSorter
 
                 Album_Results = Results;
                 AlbumIndex = 0;
-                if (Results == null)
+                if (Results == null||Results.Length ==0)
                 {
                     this.Dispatcher.BeginInvoke(DispatcherPriority.Send, (ThreadStart)delegate()
                     {
@@ -609,36 +567,21 @@ namespace MusicSorter
                 else
                 {
                     SongList[NowSelect].AlbumPictureUrl = Results;
-                    if (Results.Length > 0)
+                    this.Dispatcher.BeginInvoke(DispatcherPriority.Send, (ThreadStart)delegate()
                     {
-
-                        this.Dispatcher.BeginInvoke(DispatcherPriority.Send, (ThreadStart)delegate()
+                        //BitmapImage TmpBitmap = new BitmapImage(new Uri("Skin/AlbumNoPicture.png", UriKind.RelativeOrAbsolute)); //全局变量 用于判断专辑图片下载进度
+                        //TmpBitmap = new BitmapImage(new Uri(Results[AlbumIndex], UriKind.RelativeOrAbsolute));
+                        Image_album.Source = new BitmapImage(new Uri(Results[AlbumIndex], UriKind.RelativeOrAbsolute));
+                        Checkbox_albumpicture.Content = "保存专辑封面";
+                        Checkbox_albumpicture.IsEnabled = true;
+                        Checkbox_albumpicture.IsChecked = true;
+                        if (Results.Length > 1)
                         {
-                            //BitmapImage TmpBitmap = new BitmapImage(new Uri("Skin/AlbumNoPicture.png", UriKind.RelativeOrAbsolute)); //全局变量 用于判断专辑图片下载进度
-                            //TmpBitmap = new BitmapImage(new Uri(Results[AlbumIndex], UriKind.RelativeOrAbsolute));
-                            Image_album.Source = new BitmapImage(new Uri(Results[AlbumIndex], UriKind.RelativeOrAbsolute));
-                            Checkbox_albumpicture.Content = "保存专辑封面";
-                            Checkbox_albumpicture.IsEnabled = true;
-                            Checkbox_albumpicture.IsChecked = true;
-                            if (Results.Length > 1)
-                            {
-                                //显示左右按钮
-                                Image_Album_Previous.Visibility = Visibility.Visible;
-                                Image_Album_Next.Visibility = Visibility.Visible;
-                            }
-                        });
-                    }
-                    else
-                    {
-                        //未找到专辑封面
-                        this.Dispatcher.BeginInvoke(DispatcherPriority.Send, (ThreadStart)delegate()
-                        {
-                            Image_album.Source = new BitmapImage(new Uri("Skin/AlbumNoPicture.png", UriKind.RelativeOrAbsolute));
-                            Checkbox_albumpicture.Content = "未找到专辑封面";
-                            Checkbox_albumpicture.IsEnabled = false;
-                            Checkbox_albumpicture.IsChecked = false;
-                        });
-                    }
+                            //显示左右按钮
+                            Image_Album_Previous.Visibility = Visibility.Visible;
+                            Image_Album_Next.Visibility = Visibility.Visible;
+                        }
+                    });
                 }
 
             }
@@ -670,7 +613,7 @@ namespace MusicSorter
                     {
 
                         Lyrics = rr.Replace(Lyrics, "").Trim();
-                        SongList[NowSelect].SongLyricsUnsaved = Lyrics;
+                        SongList[NowSelect].SongLyricsUnsaved = Lyrics.Replace("\n\n","\n");
                         Checkbox_lyrics.Content = "保存歌曲歌词";
                         Checkbox_lyrics.IsEnabled = true;
                         Checkbox_lyrics.IsChecked = true;
@@ -688,7 +631,7 @@ namespace MusicSorter
             TextBox_Title.Text = SongList[NowSelect].SongTitle;
             TextBox_Artist.Text = SongList[NowSelect].SongArtist;
             TextBox_Album.Text = SongList[NowSelect].SongAlbumName;
-            Image_album.Source = SongList[NowSelect].SongAlbum;
+            Image_album.Source = SongList[NowSelect].SongAlbumFirst;
             bool NeedToGetAlbumPictures = true, NeedToGetLyrics = true;
             if (SongList[NowSelect].HasSongAlbumBool)
             {
@@ -714,8 +657,12 @@ namespace MusicSorter
             }
             Image_Album_Previous.Visibility = Visibility.Collapsed;
             Image_Album_Next.Visibility = Visibility.Collapsed;
+            if (SongList[NowSelect].SongAlbum.Count > 2){//显示左右按钮
+                Image_Album_Previous.Visibility = Visibility.Visible;
+                Image_Album_Next.Visibility = Visibility.Visible;
+            }
 
-            if (NeedToGetAlbumPictures || NeedToGetLyrics)
+            if ((NeedToGetAlbumPictures || NeedToGetLyrics) && !isBatchDeleteMode)
             {
                 //需要更新专辑封面或者歌词
                 Parameter parameter;
@@ -735,8 +682,9 @@ namespace MusicSorter
         }
 
         #region 按钮事件，不包括添加按钮
-        private void Button_SaveSong_Click(object sender, RoutedEventArgs e)
+        private void SaveSong_Click()
         {
+            isBatchDeleteMode = !true;
             //保存信息 
             //悲催的代码让我的歌曲化为灰烬……
             try
@@ -746,48 +694,64 @@ namespace MusicSorter
                 string FileName = SongList[NowSelect].SongPath;
                 bool NeedToSave = false;
 
-                ID3v2 id3v2 = new ID3v2(FileName, true);
+                var tag = new TagLibHelper(FileName);
 
-                id3v2.TextFrames.Add(new ID3.ID3v2Frames.TextFrames.TextFrame("TIT2", 0, TextBox_Title.Text, TextEncodings.UTF_16, 3));
-                id3v2.TextFrames.Add(new ID3.ID3v2Frames.TextFrames.TextFrame("TPE1", 0, TextBox_Artist.Text, TextEncodings.UTF_16, 3));
-                id3v2.TextFrames.Add(new ID3.ID3v2Frames.TextFrames.TextFrame("TALB", 0, TextBox_Album.Text, TextEncodings.UTF_16, 3));
+                if (SongList[NowSelect].SongTitle != TextBox_Title.Text.Trim() || 
+                    SongList[NowSelect].SongArtist != TextBox_Artist.Text.Trim() || 
+                    SongList[NowSelect].SongAlbumName != TextBox_Album.Text.Trim()) { 
+                    tag.file.Tag.Title = TextBox_Title.Text.Trim();
+                    if (tag.file.Tag.Performers.Length == 0) tag.file.Tag.Performers = new string[]{TextBox_Artist.Text.Trim()};
+                    else tag.file.Tag.Performers[0] = TextBox_Artist.Text.Trim();
+                    tag.file.Tag.Album = TextBox_Album.Text.Trim();
+                    SongList[NowSelect].SongTitle = TextBox_Title.Text.Trim();
+                    SongList[NowSelect].SongArtist = TextBox_Artist.Text.Trim();
+                    SongList[NowSelect].SongAlbumName = TextBox_Album.Text.Trim();
+                    tag.file.Save();
+                }
 
                 if (Checkbox_lyrics.IsChecked == true && (string)Checkbox_lyrics.Content == "保存歌曲歌词" && !string.IsNullOrEmpty(SongList[NowSelect].SongLyricsUnsaved))
                 {
                     NeedToSave = true;
+                    if (NeedToSave) tag.SaveLyrics(SongList[NowSelect].SongLyricsUnsaved);
                     SongList[NowSelect].SongLyrics = SongList[NowSelect].SongLyricsUnsaved;
-
-                    id3v2.TextWithLanguageFrames.Add(new ID3.ID3v2Frames.TextFrames.TextWithLanguageFrame("USLT", 0, SongList[NowSelect].SongLyrics, "", TextEncodings.UTF_16, "eng"));
+                    Checkbox_lyrics.Content = "歌曲歌词已保存";
                 }
                 if (Checkbox_albumpicture.IsChecked == true && (string)Checkbox_albumpicture.Content == "保存专辑封面")
                 {
                     NeedToSave = true;
-                    BitmapImage Bitmap = (BitmapImage)Image_album.Source;
-                    while (Bitmap.IsDownloading)
-                    {
-                        Thread.Sleep(50);
-                        System.Windows.Forms.Application.DoEvents();
+                    var albums = new ObservableCollection<BitmapImage>();
+                    var pictures = new List<TagLib.IPicture>();
+                    for (int i = 0; i < SongList[NowSelect].AlbumPictureUrl.Length; i++){
+                        BitmapImage Bitmap = new BitmapImage(new Uri(SongList[NowSelect].AlbumPictureUrl[i]));
+                        while (Bitmap.IsDownloading){Thread.Sleep(50);System.Windows.Forms.Application.DoEvents();}
+                        albums.Add(Bitmap);
+
+                        JpegBitmapEncoder encoder = new JpegBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(Bitmap));
+                        MemoryStream stream = new MemoryStream();
+                        encoder.Save(stream);
+               
+                        pictures.Add(new TagLib.Picture() {
+                            Type = TagLib.PictureType.FrontCover,
+                            Description = "Cover",
+                            MimeType = System.Net.Mime.MediaTypeNames.Image.Jpeg,
+                            Data = stream.ToArray()
+                        });
                     }
-                    SongList[NowSelect].SongAlbum = Bitmap;
-
-                    JpegBitmapEncoder encoder = new JpegBitmapEncoder();
-                    encoder.Frames.Add(BitmapFrame.Create(Bitmap));
-                    MemoryStream stream = new MemoryStream();
-                    encoder.Save(stream);
-                    id3v2.AttachedPictureFrames.Add(new ID3.ID3v2Frames.BinaryFrames.AttachedPictureFrame(0, "", TextEncodings.UTF_16, "image/jpeg",
-                                                   ID3.ID3v2Frames.BinaryFrames.AttachedPictureFrame.PictureTypes.Cover_Front, stream));
-
-
-                }
-                if (NeedToSave)
-                {
-                    id3v2.Save();
+                    SongList[NowSelect].SongAlbum = albums;
+                    if (NeedToSave) tag.SavePictures(pictures.ToArray());
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show("保存出错，请将下列信息反馈到官方博客，以帮助我们改进软件。谢谢！\n（官方博客：http://www.4321.la，下列信息Ctrl+C可复制）" + ex.Message);
+                if (!(AutoDownloadThread == null)) if (AutoDownloadThread.IsAlive) AutoDownloadThread.Abort();
+                System.Diagnostics.Debugger.Break();
             }
+        }
+        private void Button_SaveSong_Click(object sender, RoutedEventArgs e)
+        {
+            SaveSong_Click();
         }
         private void Button_Clean_Click(object sender, RoutedEventArgs e)
         {
@@ -868,9 +832,83 @@ namespace MusicSorter
                 ProcessBar_Download.Value = 0;
                 Sb2.Begin();
                 if (!(AutoDownloadThread == null)) if (AutoDownloadThread.IsAlive) AutoDownloadThread.Abort();
-                AutoDownloadThread = new Thread(AutoDownload);
+                //AutoDownloadThread = new Thread(AutoDownload);
+                AutoDownloadThread = new Thread(() => BatchMethod(SaveSong_Click));
                 AutoDownloadThread.Start();
             }
+        }
+
+        private void Button_DeleteAllAlbum_Click(object sender, RoutedEventArgs e)
+        { 
+            isBatchDeleteMode = true;
+            if (SongList.Count == 0) return;
+            if (ShowMessageBoxOkCancel("确定批量清除歌曲专辑封面吗？") == 1)
+            {
+                DataListBox.SelectedIndex = -1;
+                Label_ProcessBar.Content = "0%";
+                ProcessBar_Download.Value = 0;
+                Sb2.Begin();
+                if (!(AutoDownloadThread == null)) if (AutoDownloadThread.IsAlive) AutoDownloadThread.Abort();
+                AutoDownloadThread = new Thread(() => BatchMethod(DeleteAlbum_Click));
+                AutoDownloadThread.Start();
+            }
+        }
+
+        private void Button_DeleteAllLyrics_Click(object sender, RoutedEventArgs e)
+        {
+            isBatchDeleteMode = true;
+            if (SongList.Count == 0) return;
+            if (ShowMessageBoxOkCancel("确定批量清除歌曲内嵌歌词吗？") == 1)
+            {
+                DataListBox.SelectedIndex = -1;
+                Label_ProcessBar.Content = "0%";
+                ProcessBar_Download.Value = 0;
+                Sb2.Begin();
+                if (!(AutoDownloadThread == null)) if (AutoDownloadThread.IsAlive) AutoDownloadThread.Abort();
+                AutoDownloadThread = new Thread(() => BatchMethod(DeleteLyrics_Click));
+                AutoDownloadThread.Start();
+            }
+        }
+        private void BatchMethod(Action method)
+        {
+            this.Dispatcher.BeginInvoke(DispatcherPriority.Send, (ThreadStart)delegate()
+            {
+                DataListBox.IsEnabled = false;
+                Button_SaveSong.IsEnabled = false;
+                Image_Album_Previous.IsEnabled = false;
+                Image_Album_Next.IsEnabled = false;
+            });
+            for (int i = 0; i < SongList.Count; i++)
+            {
+
+                AutoDownloading = true;
+
+                //设置进度
+                this.Dispatcher.BeginInvoke(DispatcherPriority.Send, (ThreadStart)delegate()
+                {
+                    DataListBox.SelectedIndex = i;
+                    DataListBox.ScrollIntoView(DataListBox.SelectedItem);
+                    double d = ((double)(i + 1) / (double)SongList.Count * 100);
+
+                    Label_ProcessBar.Content = Math.Truncate(d).ToString() + "%";
+                    ProcessBar_Download.Value = d;
+                });
+                // 30s 超时
+                var timeOut=30;
+                while (AutoDownloading) { if (timeOut < 0) { break; } timeOut = timeOut - 1; Thread.Sleep(100); }
+
+                this.Dispatcher.BeginInvoke(DispatcherPriority.Send, method);
+
+            }
+            this.Dispatcher.BeginInvoke(DispatcherPriority.Send, (ThreadStart)delegate()
+            {
+                DataListBox.IsEnabled = true;
+                Button_SaveSong.IsEnabled = true;
+                Image_Album_Previous.IsEnabled = true;
+                Image_Album_Next.IsEnabled = true;
+                Sb3.Begin();
+            });
+
         }
         #endregion
 
@@ -936,65 +974,75 @@ namespace MusicSorter
         #region 专辑图片切换事件
         private void Image_Album_Next_MouseUp(object sender, MouseButtonEventArgs e)
         {
-            if (Album_Results == null) return;
-            if (Album_Results.Length < 2) return;
-            if (AlbumIndex >= Album_Results.Length - 1) return; //已经是最后一项了
-            AlbumIndex++;
-            Image_album.Source = new BitmapImage(new Uri(Album_Results[AlbumIndex], UriKind.RelativeOrAbsolute));
-            Image_Album_Next.ToolTip = "当前第 " + (AlbumIndex + 1) + " 项，共 " + Album_Results.Length + " 项";
-            Image_Album_Previous.ToolTip = "当前第 " + (AlbumIndex + 1) + " 项，共 " + Album_Results.Length + " 项";
+            int NowSelect = DataListBox.SelectedIndex;
+            if (NowSelect < 0) return;
+            var Results = SongList[NowSelect].SongAlbum.Count;
+            if (Results < 2) return;
+            if (AlbumIndex >= Results - 1) AlbumIndex=0; //循环播放
+            else AlbumIndex++;
+            Image_album.Source = SongList[NowSelect].SongAlbum[AlbumIndex];
+            Image_Album_Next.ToolTip = "当前第 " + (AlbumIndex + 1) + " 项，共 " + Results + " 项";
+            Image_Album_Previous.ToolTip = "当前第 " + (AlbumIndex + 1) + " 项，共 " + Results + " 项";
         }
 
         private void Image_Album_Previous_MouseUp(object sender, MouseButtonEventArgs e)
         {
-            if (Album_Results == null) return;
-            if (Album_Results.Length < 2) return;
-            if (AlbumIndex <= 0) return; //已经是第一项了
-            AlbumIndex--;
-            Image_album.Source = new BitmapImage(new Uri(Album_Results[AlbumIndex], UriKind.RelativeOrAbsolute));
-            Image_Album_Previous.ToolTip = "当前第 " + (AlbumIndex + 1) + " 项，共 " + Album_Results.Length + " 项";
-            Image_Album_Previous.ToolTip = "当前第 " + (AlbumIndex + 1) + " 项，共 " + Album_Results.Length + " 项";
+            int NowSelect = DataListBox.SelectedIndex;
+            if (NowSelect < 0) return;
+            var Results = SongList[NowSelect].SongAlbum.Count;
+            //if (Album_Results == null) return;
+            if (Results < 2) return;
+            if (AlbumIndex <= 0) AlbumIndex = Results-1; //循环播放
+            else AlbumIndex--;
+            Image_album.Source = SongList[NowSelect].SongAlbum[AlbumIndex];
+            Image_Album_Previous.ToolTip = "当前第 " + (AlbumIndex + 1) + " 项，共 " + Results + " 项";
+            Image_Album_Previous.ToolTip = "当前第 " + (AlbumIndex + 1) + " 项，共 " + Results + " 项";
         }
         #endregion
 
 
+        private void DeleteAlbum_Click()
+        {
+            int SelectedIndex = DataListBox.SelectedIndex;
+            if (!File.Exists(SongList[SelectedIndex].SongPath)) SongList.RemoveAt(SelectedIndex);
+            if (SelectedIndex < 0 || SelectedIndex > SongList.Count - 1) return;
+            if (isBatchDeleteMode||ShowMessageBoxOkCancel("\n确定要删除当前歌曲封面吗？") == 1)
+            {
+                if (SongList[SelectedIndex].HasSongAlbumBool){
+                    var tag = new TagLibHelper(SongList[SelectedIndex].SongPath);
+                    tag.SavePictures(null);
+                    SongList[SelectedIndex].SongAlbum = null;
+                }
+                DataListBox.SelectedIndex = -1;
+                DataListBox.SelectedIndex = SelectedIndex;
+            }
+        }
         private void Menu_DeleteAlbum_Click(object sender, RoutedEventArgs e)
+        {
+            isBatchDeleteMode = !true;
+            DeleteAlbum_Click();
+        }
+
+        private void DeleteLyrics_Click()
         {
             int SelectedIndex = DataListBox.SelectedIndex;
             if (SelectedIndex < 0 || SelectedIndex > SongList.Count - 1) return;
-            if (ShowMessageBoxOkCancel("\n确定要删除当前歌曲封面吗？") == 1)
+            if (isBatchDeleteMode||ShowMessageBoxOkCancel("\n确定要删除当前歌曲歌词吗？") == 1)
             {
-                ID3v2 id3v2 = new ID3v2(SongList[SelectedIndex].SongPath, true);
-                if (id3v2.AttachedPictureFrames.Count > 0)
-                {
-                    id3v2.AttachedPictureFrames.Clear();
+                if (SongList[SelectedIndex].HasSongLyricsBool){
+                    var tag = new TagLibHelper(SongList[SelectedIndex].SongPath);
+                    tag.SaveLyrics(null);
+                    SongList[SelectedIndex].SongLyrics = null;
                 }
-                id3v2.Save();
-                SongList[SelectedIndex].SongAlbum = null;
 
                 DataListBox.SelectedIndex = -1;
                 DataListBox.SelectedIndex = SelectedIndex;
             }
         }
-
         private void Menu_DeleteLyrics_Click(object sender, RoutedEventArgs e)
         {
-            int SelectedIndex = DataListBox.SelectedIndex;
-            if (SelectedIndex < 0 || SelectedIndex > SongList.Count - 1) return;
-            if (ShowMessageBoxOkCancel("\n确定要删除当前歌曲歌词吗？") == 1)
-            {
-                ID3v2 id3v2 = new ID3v2(SongList[SelectedIndex].SongPath, true);
-                if (id3v2.TextWithLanguageFrames.Count > 0)
-                {
-                    id3v2.TextWithLanguageFrames.Clear();
-                }
-                id3v2.Save();
-                SongList[SelectedIndex].SongLyrics = null;
-                SongList[SelectedIndex].SongLyricsUnsaved = null;
-
-                DataListBox.SelectedIndex = -1;
-                DataListBox.SelectedIndex = SelectedIndex;
-            }
+            isBatchDeleteMode = !true;
+            DeleteLyrics_Click();
         }
 
         private void Menu_EditLyrics_Click(object sender, RoutedEventArgs e)
@@ -1011,15 +1059,9 @@ namespace MusicSorter
             int SelectedIndex = DataListBox.SelectedIndex;
             if (SelectedIndex < 0 || SelectedIndex > SongList.Count - 1) return;
 
-            ID3v2 id3v2 = new ID3v2(SongList[SelectedIndex].SongPath, true);
-            if (id3v2.TextWithLanguageFrames.Count > 0)
-            {
-                id3v2.TextWithLanguageFrames.Clear();
-            }
-
-            id3v2.TextWithLanguageFrames.Add(new ID3.ID3v2Frames.TextFrames.TextWithLanguageFrame("USLT", 0, Textbox_EditLyrics.Text, "", TextEncodings.UTF_16, "eng"));
+            var tag = new TagLibHelper(SongList[SelectedIndex].SongPath);
+            tag.SaveLyrics(Textbox_EditLyrics.Text);
             SongList[SelectedIndex].SongLyrics = Textbox_EditLyrics.Text;
-            id3v2.Save();
             DataListBox.SelectedIndex = -1;
             DataListBox.SelectedIndex = SelectedIndex;
 
@@ -1077,14 +1119,14 @@ namespace MusicSorter
         public string SongTitle { get; set; }
         public string SongArtist { get; set; }
         public string SongAlbumName { get; set; }
-        private BitmapImage songalbum;
-        public BitmapImage SongAlbum
+        private ObservableCollection<BitmapImage> songalbum;
+        public ObservableCollection<BitmapImage> SongAlbum
         {
             get
             {
                 if (songalbum == null)
                 {
-                    return new BitmapImage(new Uri("Skin/AlbumNoPicture.png", UriKind.RelativeOrAbsolute));
+                    return new ObservableCollection<BitmapImage> { };
                 }
                 else
                 {
@@ -1099,6 +1141,7 @@ namespace MusicSorter
                 NotifyPropertyChange("HasSongAlbum");
             }
         }
+        public BitmapImage SongAlbumFirst { get { return SongAlbum.Count > 0 ? SongAlbum[0] : new BitmapImage(new Uri("Skin/AlbumNoPicture.png", UriKind.RelativeOrAbsolute)); } }
         private string songlyrics;
         public string SongLyrics
         {
@@ -1118,15 +1161,18 @@ namespace MusicSorter
         {
             get
             {
-                return songalbum == null ? null : "Skin/icon_album.png";
+                return songalbum == null||songalbum.Count==0 ? null : "Skin/icon_album.png";
             }
             set { }
         }
+        public string AlbumTip { get { return "专辑图片 OK!\n共 " + songalbum.Count + " 张专辑图片。"; } }
+        public string LyricsTip { get { return "歌曲歌词 OK!\n\n" + songlyrics; } }
+
         public bool HasSongAlbumBool
         {
             get
             {
-                return songalbum != null;
+                return songalbum != null&&songalbum.Count>0;
             }
             set { }
         }
@@ -1148,6 +1194,7 @@ namespace MusicSorter
             set { }
         }
         public string[] AlbumPictureUrl { get; set; }
+        public int AlbumDownloadedNum { get; set; }
 
 
 
@@ -1160,7 +1207,7 @@ namespace MusicSorter
             }
         }
 
-        public Song(string SongPath, string SongTitle, string SongArtist, string SongAlbumName, BitmapImage SongAlbum, string SongLyrics)
+        public Song(string SongPath, string SongTitle, string SongArtist, string SongAlbumName, ObservableCollection<BitmapImage> SongAlbum, string SongLyrics)
         {
             this.SongPath = SongPath;
             this.SongTitle = SongTitle;

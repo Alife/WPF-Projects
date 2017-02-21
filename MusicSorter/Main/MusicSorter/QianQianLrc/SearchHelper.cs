@@ -126,6 +126,7 @@ namespace QianQianLrc
         private static string RequestALink(string link)
         {
             WebRequest request = WebRequest.Create(link);
+            request.Timeout = 10*1000;
             StringBuilder sb = new StringBuilder();
             try
             {

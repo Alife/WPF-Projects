@@ -78,6 +78,10 @@
     <Reference Include="System.Xml" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
+    <Reference Include="taglib-sharp, Version=2.1.0.0, Culture=neutral, PublicKeyToken=db62eba44689b5b0, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>bin\taglib-sharp.dll</HintPath>
+    </Reference>
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
@@ -88,6 +92,7 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Class_SelectLyrics.cs" />
+    <Compile Include="TagLibHelper.cs" />
     <Compile Include="ID3v1Helper.cs" />
     <Compile Include="WebHelper.cs" />
     <Compile Include="Windows_Custom_Messagebox.xaml.cs">
@@ -142,6 +147,7 @@
     <None Include="Application.ico">
       <Visible>false</Visible>
     </None>
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Skin\AlbumBackground.png" />
@@ -187,10 +193,6 @@
     <Resource Include="Skin\NeedToRefresh.png" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\ID3Class\ID3.csproj">
-      <Project>{5D66099A-A8C5-47AB-B230-C9B60DFC1B40}</Project>
-      <Name>ID3</Name>
-    </ProjectReference>
     <ProjectReference Include="..\QianQianLrc\LRC.csproj">
       <Project>{57A31311-A8AA-44E9-8CF3-C8508FE58FC7}</Project>
       <Name>LRC</Name>
@@ -229,6 +231,9 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Skin\iconxp.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="bin\taglib-sharp.dll" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath32)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
